@@ -195,9 +195,18 @@ class Reticular
             [:any, :any]   => lambda { |x, y| (x.to_f / y.to_f).to_i }
         }),
         "~" => lambda { |instance| instance.get(2).reverse.each {|e| instance.stack.push e} },
-        "a" => lambda { |instance| instance.push instance.args[instance.stack.pop] },
+        "a" => lambda { |instance|
+            top = instance.stack.pop
+            arg = instance.args[top]
+            unless defined? arg
+                raise "argument #{top} does not exist"
+            end
+            instance.push arg
+        },
         "A" => lambda { |instance| instance.push instance.args },
-        "f" => lambda { |instance| instance.push instance.pop.to_f },
+        "f" => unary("n", {
+            [:any] => lambda { |x| x.to_f }
+        }),
         "i" => lambda { |instance| instance.push $stdin.gets.chomp },
         "I" => lambda { |instance| instance.push mutli_line_input },
         "n" => unary("n", {
