@@ -1,3 +1,5 @@
+load "funcs.rb"
+
 class String
     def quote
         '"' + self + '"'
@@ -166,76 +168,81 @@ end
 
 class Reticular
     @@commands = {
-        " " => lambda { |instance| instance},
-        ">" => lambda { |instance| instance.dir.update( 1,  0) },
-        "<" => lambda { |instance| instance.dir.update(-1,  0) },
-        "v" => lambda { |instance| instance.dir.update( 0,  1) },
-        "^" => lambda { |instance| instance.dir.update( 0, -1) },
-        "/" => lambda { |instance|
+        " "  => lambda { |instance| instance},
+        ">"  => lambda { |instance| instance.dir.update( 1,  0) },
+        "<"  => lambda { |instance| instance.dir.update(-1,  0) },
+        "v"  => lambda { |instance| instance.dir.update( 0,  1) },
+        "^"  => lambda { |instance| instance.dir.update( 0, -1) },
+        "/"  => lambda { |instance|
             instance.dir.x, instance.dir.y = -instance.dir.y, -instance.dir.x
         },
         "\\" => lambda { |instance|
             instance.dir.x, instance.dir.y = instance.dir.y, instance.dir.x
         },
-        "!" => lambda { |instance| instance.advance },
-        ";" => lambda { |instance| instance.stop },
-        "+" => binary("+", {
+        "!"  => lambda { |instance| instance.advance },
+        ";"  => lambda { |instance| instance.stop },
+        "+"  => binary("+", {
             [:any, :any] => lambda { |x, y| x + y },
         }),
-        "*" => binary("*", {
+        "*"  => binary("*", {
             [:any, :any] => lambda { |x, y| x * y },
         }),
-        "%" => binary("%", {
+        "%"  => binary("%", {
             [Fixnum, Fixnum]   => lambda { |x, y| x.to_f / y.to_f },
             [Fixnum, Float]    => lambda { |x, y| x.to_f / y },
             [Float, Fixnum]    => lambda { |x, y| x / y.to_f },
             [Float, Float]     => lambda { |x, y| x / y },
         }),
-        ":" => binary(":", {
+        ":"  => binary(":", {
             [:any, :any]   => lambda { |x, y| (x.to_f / y.to_f).to_i }
         }),
-        "~" => lambda { |instance| instance.get(2).reverse.each {|e| instance.stack.push e} },
-        "a" => lambda { |instance|
+        "~"  => lambda { |instance| instance.get(2).reverse.each {|e| instance.stack.push e} },
+        "a"  => lambda { |instance|
             top = instance.stack.pop
             arg = instance.args[top]
             unless defined? arg
-                raise "argument #{top} does not exist"
+                raise "argument #{top} does not exist."
             end
             instance.push arg
         },
-        "c" => unary("c", {
+        "c"  => unary("c", {
             [Fixnum] => lambda { |x| x.chr },
         }),
-        "A" => lambda { |instance| instance.push instance.args },
-        "f" => unary("n", {
+        "A"  => lambda { |instance| instance.push instance.args },
+        "f"  => unary("n", {
             [:any] => lambda { |x| x.to_f }
         }),
-        "i" => lambda { |instance| instance.push $stdin.gets.chomp },
-        "I" => lambda { |instance| instance.push mutli_line_input },
-        "n" => unary("n", {
+        "i"  => lambda { |instance| instance.push $stdin.gets.chomp },
+        "I"  => lambda { |instance| instance.push mutli_line_input },
+        "n"  => unary("n", {
             [:any] => lambda { |x| sround x }
         }),
-        "o" => lambda { |instance| 
+        "o"  => lambda { |instance| 
             entity = instance.stack.pop
             instance.output += entity.to_s
             print entity
         },
-        "O" => lambda { |instance| instance.stack.data.size.times {
+        "O"  => lambda { |instance| instance.stack.data.size.times {
             entity = instance.stack.data.shift
             instance.output += entity.to_s
             print entity
         } },
-        "p" => lambda { |instance|
+        "p"  => lambda { |instance|
             entity = instance.stack.pop
             instance.output += entity.to_s
             puts entity
         },
-        "P" => lambda { |instance| instance.stack.data.size.times {
+        "P"  => lambda { |instance| instance.stack.data.size.times {
             entity = instance.stack.data.shift
             instance.output += entity.to_s
             puts entity
         } },
-        "s" => unary("s", lambda { |x| x.to_s }),
+        "@p" => unary("@p", {
+            [:any] => lambda { |x| F.is_prime? x }
+        }),
+        "s"  => unary("s", {
+            [:any] => lambda { |x| x.to_s }
+        }),
     }
     
     def initialize(code, args)
@@ -301,6 +308,13 @@ class Reticular
             cmd = self.current
             if @@commands.has_key? cmd
                 @@commands[cmd].call(self)
+            elsif cmd == "@"
+                self.advance
+                cmd += self.current
+                unless @@commands.has_key? cmd
+                    raise "character `#{cmd}` is not a vaild instruction."
+                end
+                @@commands[cmd].call(self)
             elsif cmd == '"'
                 build = ""
                 loop do
@@ -324,8 +338,8 @@ class Reticular
                     build += self.current
                 end
                 @stack.push sround build
-            # elsif cmd =~ /[0-9]/
-                # @stack.push cmd.to_i
+            elsif cmd =~ /[0-9]/
+                @stack.push cmd.to_i
             else
                 raise "character `#{cmd}` is not a vaild instruction."
             end
