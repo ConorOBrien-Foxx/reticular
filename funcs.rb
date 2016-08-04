@@ -15,20 +15,39 @@ module F
         else
             (2 .. (Math.sqrt n).to_i).each { |i|
                 if n % i == 0
-                    return false
+                    return @@mem_is_prime[n] = false
                 end
             }
-            true
+            @@mem_is_prime[n] = true
         end
     end
     
-    @@mem_nth_prime = {
-        0 => 2,
-        1 => 3,
-        2 => 5
-    }
+    def F.primes
+        Enumerator.new do |enum|
+            i = 2
+            while true
+                enum.yield i
+                i += 1
+                until F.is_prime? i
+                    i += 1
+                end
+            end
+        end
+    end
+    
+    @@mem_nth_prime = {}
     def F.nth_prime(n)
-        # TODO: implement
+        if @@mem_nth_prime.has_key? n
+            return @@mem_nth_prime[n]
+        else
+            m = n
+            gen = F.primes
+            c = 2
+            while m >= 0
+                m -= 1
+                c = gen.next
+            end
+            c
+        end
     end
 end
-

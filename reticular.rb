@@ -240,6 +240,9 @@ class Reticular
         "@p" => unary("@p", {
             [:any] => lambda { |x| F.is_prime? x }
         }),
+        "@P" => unary("@P", {
+            [:any] => lambda { |x| F.nth_prime x }
+        }),
         "s"  => unary("s", {
             [:any] => lambda { |x| x.to_s }
         }),
