@@ -9,4 +9,4 @@
 
 For debugging:
 
-    ruby reticular.rb -d <seconds> <fileName>
+    ruby reticular.rb -d <delay in seconds> <fileName>
