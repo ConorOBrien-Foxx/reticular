@@ -3,7 +3,7 @@
 
 ### Running
 
-    ruby reticular.rb <filename>
+    ruby reticular.rb <fileName>
 
 (File extension does not matter.)
 
