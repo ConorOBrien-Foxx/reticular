@@ -203,6 +203,9 @@ class Reticular
             end
             instance.push arg
         },
+        "c" => unary("c", {
+            [Fixnum] => lambda { |x| x.chr },
+        }),
         "A" => lambda { |instance| instance.push instance.args },
         "f" => unary("n", {
             [:any] => lambda { |x| x.to_f }
@@ -312,8 +315,17 @@ class Reticular
                     end
                 end
                 @stack.push build
-            elsif cmd =~ /[0-9]/
-                @stack.push cmd.to_i
+            elsif cmd == "'"
+                build = ""
+                loop do
+                    self.advance
+                    break if @pointer.from(@field) == "'"
+                    
+                    build += self.current
+                end
+                @stack.push sround build
+            # elsif cmd =~ /[0-9]/
+                # @stack.push cmd.to_i
             else
                 raise "character `#{cmd}` is not a vaild instruction."
             end
