@@ -166,6 +166,10 @@ def unary(*args)
     nary(1, *args)
 end
 
+def nilary(f)
+    lambda { |instance| instance.push f[] }
+end
+
 class Reticular
     @@commands = {
         " "  => lambda { |instance| instance},
@@ -187,6 +191,9 @@ class Reticular
         "*"  => binary("*", {
             [:any, :any] => lambda { |x, y| x * y },
         }),
+        "-"  => binary("-", {
+            [:any, :any] => lambda { |x, y| x - y },
+        }),
         "%"  => binary("%", {
             [Fixnum, Fixnum]   => lambda { |x, y| x.to_f / y.to_f },
             [Fixnum, Float]    => lambda { |x, y| x.to_f / y },
@@ -205,10 +212,11 @@ class Reticular
             end
             instance.push arg
         },
+        "A"  => lambda { |instance| instance.push instance.args },
         "c"  => unary("c", {
             [Fixnum] => lambda { |x| x.chr },
         }),
-        "A"  => lambda { |instance| instance.push instance.args },
+        "d"  => lambda { |instance| 2.times { instance.push instance.stack.top } },
         "f"  => unary("n", {
             [:any] => lambda { |x| x.to_f }
         }),
@@ -237,14 +245,14 @@ class Reticular
             instance.output += entity.to_s
             puts entity
         } },
+        "s"  => unary("s", {
+            [:any] => lambda { |x| x.to_s }
+        }),
         "@p" => unary("@p", {
             [:any] => lambda { |x| F.is_prime? x }
         }),
         "@P" => unary("@P", {
             [:any] => lambda { |x| F.nth_prime x }
-        }),
-        "s"  => unary("s", {
-            [:any] => lambda { |x| x.to_s }
         }),
     }
     
