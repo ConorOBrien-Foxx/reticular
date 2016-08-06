@@ -223,6 +223,11 @@ class Reticular
         "?"  => lambda { |instance|
             instance.advance if falsey? instance.stack.top
         },
+        "."  => lambda { |instance|
+            instance.advance
+            cmd = instance.current
+            instance.stack.push instance.variables[cmd]
+        },
         "@@" => lambda { |instance|
             # up if 1, right if 0, down if -1
             val = instance.stack.pop
@@ -260,6 +265,9 @@ class Reticular
         }),
         "C"  => binary("C", {
             [:any, :any] => lambda { |x, y| x <=> y },
+        }),
+        "@c" => binary("@c", {
+            [:any, :any] => lambda { |x, y| x.count y},
         }),
         "d"  => lambda { |instance| instance.push instance.stack.top },
         "D"  => lambda { |instance| instance.stack.data.size.times { |i|
@@ -333,6 +341,15 @@ class Reticular
         "S"  => unary("S", {
             [String] => lambda { |x| x.chars },
         }),
+        "u"  => lambda { |instance|
+            instance.advance
+            cmd = instance.read_command
+            ref = instance.stack.pop
+            instance.stack.push instance.variables[ref]
+            instance.commands[cmd].call(instance)
+            result = instance.stack.pop
+            instance.variables[ref] = result
+        },
     }   
     
     def initialize(code, args)
@@ -396,6 +413,16 @@ class Reticular
         @stack.get *a
     end
     
+    def read_command
+        build = ""
+        cmd = self.current
+        if cmd == "@"
+            self.advance
+            cmd += self.current
+        end
+        cmd
+    end
+    
     def execute(debug = false, debug_time = 0.5)
         if @field == [[]]
             while true
@@ -406,15 +433,18 @@ class Reticular
         while @running
             self.print_state(debug_time) if debug
             
-            cmd = self.current
+            # cmd = self.current
+            # if @commands.has_key? cmd
+                # @commands[cmd].call(self)
+            # elsif cmd == "@"
+                # self.advance
+                # cmd += self.current
+                # unless @commands.has_key? cmd
+                    # raise "character `#{cmd}` is not a vaild instruction."
+                # end
+                # @commands[cmd].call(self)
+            cmd = self.read_command
             if @commands.has_key? cmd
-                @commands[cmd].call(self)
-            elsif cmd == "@"
-                self.advance
-                cmd += self.current
-                unless @commands.has_key? cmd
-                    raise "character `#{cmd}` is not a vaild instruction."
-                end
                 @commands[cmd].call(self)
             elsif cmd == '"'
                 build = ""
