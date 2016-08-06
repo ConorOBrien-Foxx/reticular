@@ -267,7 +267,7 @@ class Reticular
         } },
         "e"  => nilary(Math.exp 1),
         "E"  => binary("E", {
-            [:any, :any] => lambda { |x, y| x == y },
+            [:any, :any] => lambda { |x, y| x == y ? 1 : 0 },
         }),
         "f"  => unary("n", {
             [:any] => lambda { |x| x.to_f }
