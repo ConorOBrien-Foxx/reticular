@@ -1,59 +1,5 @@
 load "funcs.rb"
 
-class String
-    def quote
-        '"' + self + '"'
-    end
-end
-
-def sround(item)
-    if item.is_a? String
-        sround item.to_f
-    elsif item.is_a? Float
-        item == item.to_i ? item.to_i : item
-    elsif item.is_a? Fixnum
-        item
-    else
-        nil
-    end
-end
-
-def highlight(text)
-    "\e[4m\e[1m\e[36m#{text}\e[0m\e[0m\e[0m"
-end
-
-def clear
-    system "clear" or system "cl"
-end
-
-def mutli_line_input
-    string = ""
-    until (line = $stdin.gets).chomp.empty?
-        string += line
-    end
-    return string
-end
-
-def pretty(*args)
-    str = ""
-    args.each do |item|
-        if item.kind_of? Array
-            str += "[ #{ item.map { |el| pretty(el) }.join(", ") } ]"
-        elsif item.kind_of? String
-            str += item.quote
-        # elsif item.kind_of? Fixnum
-        else
-            str += item.to_s
-        end
-        str += " " unless item == args.last
-    end
-    str
-end
-
-def pputs(*args)
-    puts pretty(*args)
-end
-
 class Coordinate
     def initialize(x, y)
         @x = x
@@ -138,16 +84,44 @@ class Stack
     end
 end
 
-def nary(n, sym, f_map)
+class Func
+    def initialize(body, parent_instance)
+        # puts body
+        @body = body
+        @parent = parent_instance
+    end
+    
+    def exec(*args)
+        # TODO
+        child = Reticular.new(@body + ";", args)
+        @parent.adopt(child)
+        child.execute
+        child.adopt(@parent)
+    end
+    
+    def [](*args)
+        self.exec(*args)
+    end
+    
+    def to_s
+        return "[#{@body}]"
+    end
+end
+
+def nary(n, sym, f_map, preserve = false)
     lambda { |instance|
         top = instance.stack.get(n)
+        (instance.stack.data.concat top) if preserve
         types = top.map { |item| item.class }
         func = nil
         f_map.each do |dest_type, f|
             i = -1
-            valid = dest_type.all? { |d_t| d_t == :any || d_t == types[i += 1] }
+            valid = dest_type.all? { |d_t|
+                i += 1
+                d_t == :any || d_t == types[i] }
             if valid
                 func = f
+                break
             end
         end
         
@@ -158,12 +132,20 @@ def nary(n, sym, f_map)
     }
 end
 
+def nary_preserve(n, sym, f_map)
+    nary(n, sym, f_map, true)
+end
+
 def binary(*args)
     nary(2, *args)
 end
 
 def unary(*args)
     nary(1, *args)
+end
+
+def unary_preserve(*args)
+    nary_preserve(1, *args)
 end
 
 def nilary(f)
@@ -185,10 +167,29 @@ class Reticular
         },
         "!"  => lambda { |instance| instance.advance },
         ";"  => lambda { |instance| instance.stop },
+        ":"  => lambda { |instance|
+            instance.advance
+            instance.stack.push instance.current
+        },
         "+"  => binary("+", {
+            [Array, Array] => lambda { |x, y| x.concat y },
+            [Array, :any] => lambda { |x, y| x.map {|e| e + y} },
+            [:any, Array] => lambda { |x, y| y.map {|e| x + e} },
             [:any, :any] => lambda { |x, y| x + y },
         }),
         "*"  => binary("*", {
+            [Array, Array] => lambda { |x, y| x.product y },
+            [String, String] => lambda { |x, y|
+                x.chars.product(y.chars).map { |x| x.join } .join
+            },
+            [String, Array] => lambda { |x, y|
+                x.chars.product(y).map { |x| x.join } .join
+            },
+            [Array, String] => lambda { |x, y|
+                x.product(y.chars).map { |x| x.join } .join
+            },
+            [Array, :any] => lambda { |x, y| x.map {|e| e * y} },
+            [:any, Array] => lambda { |x, y| y.map {|e| x * e} },
             [:any, :any] => lambda { |x, y| x * y },
         }),
         "-"  => binary("-", {
@@ -200,31 +201,102 @@ class Reticular
             [Float, Fixnum]    => lambda { |x, y| x / y.to_f },
             [Float, Float]     => lambda { |x, y| x / y },
         }),
-        ":"  => binary(":", {
+        "&"  => binary("&", {
             [:any, :any]   => lambda { |x, y| (x.to_f / y.to_f).to_i }
         }),
+        "$"  => lambda { |instance| instance.stack.pop },
         "~"  => lambda { |instance| instance.get(2).reverse.each {|e| instance.stack.push e} },
+        "="  => lambda { |instance|
+            # ref, value = instance.get(2)
+            value, ref = instance.get(2)
+            instance.variables[ref] = value
+        },
+        "_"  => lambda { |instance|
+            instance.dir.update(-1 + 2 * (falsey?(instance.stack.top) ? 1 : 0), 0)
+        },
+        "|"  => lambda { |instance|
+            instance.dir.update(0, -1 + 2 * (falsey?(instance.stack.top) ? 1 : 0))
+        },
+        "`"  => lambda { |instance|
+            instance.push instance.variables[instance.stack.pop]
+        },
+        "?"  => lambda { |instance|
+            instance.advance if falsey? instance.stack.top
+        },
+        "@@" => lambda { |instance|
+            # up if 1, right if 0, down if -1
+            val = instance.stack.pop
+            s_val = val <=> 0
+            instance.dir.update(*case s_val
+                when 1
+                    [0, -1]
+                when 0
+                    [1, 0]
+                when -1
+                    [0, 1]
+            end)
+        },
         "a"  => lambda { |instance|
             top = instance.stack.pop
             arg = instance.args[top]
             unless defined? arg
-                raise "argument #{top} does not exist."
+                raise "in `a`: argument #{top} does not exist."
             end
             instance.push arg
         },
         "A"  => lambda { |instance| instance.push instance.args },
+        "b"  => lambda { |instance|
+            top = instance.stack.pop
+            if top.class != Fixnum
+                raise "in `b`: expected argument #{top} to be Fixnum, got type #{top.class}."
+            end
+            instance.push instance.stack.get top},
+        "B"  => lambda { |instance|
+            instance.stack.data += instance.stack.pop
+        },
         "c"  => unary("c", {
             [Fixnum] => lambda { |x| x.chr },
+            [String] => lambda { |x| x.codepoints[0] },
         }),
-        "d"  => lambda { |instance| 2.times { instance.push instance.stack.top } },
+        "C"  => binary("C", {
+            [:any, :any] => lambda { |x, y| x <=> y },
+        }),
+        "d"  => lambda { |instance| instance.push instance.stack.top },
+        "D"  => lambda { |instance| instance.stack.data.size.times { |i|
+            instance.push instance.stack.data[i]
+        } },
+        "e"  => nilary(Math.exp 1),
+        "E"  => binary("E", {
+            [:any, :any] => lambda { |x, y| x == y },
+        }),
         "f"  => unary("n", {
             [:any] => lambda { |x| x.to_f }
         }),
+        "F"  => lambda { |instance|
+            hash, key = instance.get(2)
+            instance.push hash
+            instance.push hash[key]
+        },
+        "g"  => lambda { |instance|
+            instance.stack.pop.exec
+        },
+        "H"  => lambda { |instance| instance.push Hash.new },
+        "h"  => lambda { |instance|
+            hash, key, value = instance.get(3)
+            hash[key] = value
+            instance.push hash
+        },
         "i"  => lambda { |instance| instance.push $stdin.gets.chomp },
         "I"  => lambda { |instance| instance.push mutli_line_input },
+        "l"  => lambda { |instance| instance.push instance.data.size },
+        "L"  => unary_preserve("L", {
+            [Fixnum] => lambda { |x| Math.log10(x).to_i },
+            [:any]   => lambda { |x| x.size },
+        }),
         "n"  => unary("n", {
             [:any] => lambda { |x| sround x }
         }),
+        "N"  => nilary(constant nil),
         "o"  => lambda { |instance| 
             entity = instance.stack.pop
             instance.output += entity.to_s
@@ -245,24 +317,33 @@ class Reticular
             instance.output += entity.to_s
             puts entity
         } },
-        "s"  => unary("s", {
-            [:any] => lambda { |x| x.to_s }
-        }),
         "@p" => unary("@p", {
             [:any] => lambda { |x| F.is_prime? x }
         }),
         "@P" => unary("@P", {
             [:any] => lambda { |x| F.nth_prime x }
         }),
-    }
+        "r"  => nilary(lambda { rand }),
+        "R"  => binary("R", {[:any, :any] => lambda { |x, y| Array x .. y}}),
+        "@R" => binary("@R", {[:any, :any] => lambda { |x, y| rand x .. y }}),
+        "@r" => unary("@r", {[:any] => lambda { |x| x[rand 0 ... x.size] }}),
+        "s"  => unary("s", {
+            [:any] => lambda { |x| x.to_s },
+        }),
+        "S"  => unary("S", {
+            [String] => lambda { |x| x.chars },
+        }),
+    }   
     
     def initialize(code, args)
-        @dir = Coordinate.new(1, 0)
+        @dir       = Coordinate.new(1, 0)
         @args      = args
         @stack     = Stack.new
         @output    = ""
         @running   = false
         @pointer   = Coordinate.new(0, 0)
+        @commands  = @@commands
+        @variables = {}
         
         if code.empty?
             @field = [[]]
@@ -277,14 +358,23 @@ class Reticular
         self
     end
     
-    attr_accessor :field
     attr_accessor :dir
-    attr_accessor :pointer
+    attr_accessor :args
+    attr_accessor :field
+    attr_accessor :stack
     attr_accessor :width
     attr_accessor :height
-    attr_accessor :stack
     attr_accessor :output
-    attr_accessor :args
+    attr_accessor :pointer
+    attr_accessor :commands
+    attr_accessor :variables
+    
+    # gives relevant properties to the other instance
+    def adopt(other)
+        other.stack = @stack
+        other.output = @output
+        other.variables = @variables
+    end
     
     def advance
         @pointer.move_bound(@dir, @width, @height)
@@ -317,15 +407,15 @@ class Reticular
             self.print_state(debug_time) if debug
             
             cmd = self.current
-            if @@commands.has_key? cmd
-                @@commands[cmd].call(self)
+            if @commands.has_key? cmd
+                @commands[cmd].call(self)
             elsif cmd == "@"
                 self.advance
                 cmd += self.current
-                unless @@commands.has_key? cmd
+                unless @commands.has_key? cmd
                     raise "character `#{cmd}` is not a vaild instruction."
                 end
-                @@commands[cmd].call(self)
+                @commands[cmd].call(self)
             elsif cmd == '"'
                 build = ""
                 loop do
@@ -349,6 +439,28 @@ class Reticular
                     build += self.current
                 end
                 @stack.push sround build
+            elsif cmd == "["    # begin function definition
+                depth = 1
+                build = ""
+                # TODO: fix problem with strings in thing
+                while depth != 0
+                    # puts build
+                    self.advance
+                    if self.current == "["
+                        depth += 1 
+                    elsif self.current == "]"
+                        depth -= 1
+                    # elsif self.current == '"'
+                        # self.advance
+                        # while self.current != '"'
+                            # puts self.current
+                            # self.advance if self.current == "\\"
+                            # self.advance
+                        # end
+                    end
+                    build += self.current unless depth == 0
+                end
+                @stack.push Func.new(build, self)
             elsif cmd =~ /[0-9]/
                 @stack.push cmd.to_i
             else
@@ -382,6 +494,10 @@ class Reticular
         puts "\u2502 " + pretty(@stack)
         puts "\u251C OUTPUT"
         puts output.gsub(/^/, "\u2502 ")
+        puts "\u251C VARIABLES"
+        @variables.each { |k, v|
+            puts "\u251C\u2500 #{k} => #{pretty v}"
+        }
         puts "\u2514"
         sleep time
     end

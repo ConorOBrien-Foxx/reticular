@@ -1,3 +1,78 @@
+
+class String
+    def quote
+        '"' + self + '"'
+    end
+end
+
+def sround(item)
+    if item.is_a? String
+        item =~ /^[-0-9.]+$/ && sround(item.to_f)
+    elsif item.is_a? Float
+        item == item.to_i ? item.to_i : item
+    elsif item.is_a? Fixnum
+        item
+    else
+        nil
+    end
+end
+
+def highlight(text)
+    "\e[4m\e[1m\e[36m#{text}\e[0m\e[0m\e[0m"
+end
+
+def clear
+    system "clear" or system "cl"
+end
+
+def mutli_line_input
+    string = ""
+    until (line = $stdin.gets).chomp.empty?
+        string += line
+    end
+    return string
+end
+
+def constant(v)
+    lambda { v }
+end
+
+def pretty(*args)
+    str = ""
+    args.each do |item|
+        if item.kind_of? Array
+            str += "[ #{ item.map { |el| pretty(el) }.join(", ") } ]"
+        elsif item.kind_of? String
+            str += item.quote
+        elsif item.kind_of? Hash
+            str += "{"
+            item.each { |k, v|
+                str += "#{pretty(k)} => #{pretty(v)},"
+            }
+            str += "}"
+        # elsif item.kind_of? Fixnum
+        elsif item == nil
+            str += "nil"
+        else
+            str += item.to_s
+        end
+        str += " " unless item == args.last
+    end
+    str
+end
+
+def pputs(*args)
+    puts pretty(*args)
+end
+
+def falsey?(value)
+    begin
+        return value == 0 || value.empty?
+    rescue
+        return false
+    end
+end
+
 module F
     @@mem_is_prime = {
         1 => false,
