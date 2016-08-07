@@ -443,6 +443,11 @@ class Reticular
         true
     end
     
+    # moves to the next non-whitespace character
+    def skip_whitespace
+        self.advance while self.current == " "
+    end
+    
     def read_command
         build = ""
         cmd = self.current
@@ -506,8 +511,6 @@ class Reticular
             
             self.expect "]"
             self.advance
-            
-            puts self.current
             
             break unless self.current == ","
             self.advance
