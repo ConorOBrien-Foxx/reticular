@@ -281,14 +281,33 @@ class Reticular
             [:any] => lambda { |x| x.to_f }
         }),
         "F"  => lambda { |instance|
+            # H
             hash, key = instance.get(2)
             instance.push hash
-            instance.push hash[key]
+            begin
+                instance.push hash[key]
+            rescue
+                instance.push hash.send(key)
+            end
+            # g
+            instance.stack.pop.exec
         },
         "g"  => lambda { |instance|
             instance.stack.pop.exec
         },
-        "H"  => lambda { |instance| instance.push Hash.new },
+        "G"  => lambda { |instance|
+            args = instance.get(instance.stack.pop)
+            instance.stack.pop.exec args
+        },
+        "H"  => lambda { |instance|
+            hash, key = instance.get(2)
+            instance.push hash
+            begin
+                instance.push hash[key]
+            rescue
+                instance.push hash.send(key)
+            end
+        },
         "h"  => lambda { |instance|
             hash, key, value = instance.get(3)
             hash[key] = value
@@ -296,11 +315,14 @@ class Reticular
         },
         "i"  => lambda { |instance| instance.push $stdin.gets.chomp },
         "I"  => lambda { |instance| instance.push mutli_line_input },
+        "j"  => lambda { |instance| instance.stack.pop.times { instance.advance } },
         "l"  => lambda { |instance| instance.push instance.data.size },
         "L"  => unary_preserve("L", {
             [Fixnum] => lambda { |x| Math.log10(x).to_i },
             [:any]   => lambda { |x| x.size },
         }),
+        "m"  => lambda { |instance| instance.stack.data.push instance.stack.data.shift },
+        "M"  => lambda { |instance| instance.stack.data.unshift instance.stack.data.pop },
         "n"  => unary("n", {
             [:any] => lambda { |x| sround x }
         }),
@@ -331,6 +353,7 @@ class Reticular
         "@P" => unary("@P", {
             [:any] => lambda { |x| F.nth_prime x }
         }),
+        "q"  => lambda { |instance| instance.stack.data.reverse! },
         "r"  => nilary(lambda { rand }),
         "R"  => binary("R", {[:any, :any] => lambda { |x, y| Array x .. y}}),
         "@R" => binary("@R", {[:any, :any] => lambda { |x, y| rand x .. y }}),
@@ -413,6 +436,13 @@ class Reticular
         @stack.get *a
     end
     
+    def expect(command)
+        unless self.current == command
+            raise "error, expected `#{command}`, received `#{self.current}` at (#{@pointer.x},#{@pointer.y})"
+        end
+        true
+    end
+    
     def read_command
         build = ""
         cmd = self.current
@@ -421,6 +451,68 @@ class Reticular
             cmd += self.current
         end
         cmd
+    end
+    
+    def read_str
+        build = ""
+        loop do
+            self.advance
+            break if @pointer.from(@field) == '"'
+            
+            if self.current == "\\"
+                self.advance
+                build += eval ("\\" + self.current).quote
+            else
+                build += self.current
+            end
+        end
+        build
+    end
+    
+    def read_func
+        self.expect "["
+        depth = 1
+        build = ""
+        # TODO: fix problem with strings in thing
+        while depth != 0
+            # puts build
+            self.advance
+            if self.current == "["
+                depth += 1 
+            elsif self.current == "]"
+                depth -= 1
+            # elsif self.current == '"'
+                # self.advance
+                # while self.current != '"'
+                    # puts self.current
+                    # self.advance if self.current == "\\"
+                    # self.advance
+                # end
+            end
+            build += self.current unless depth == 0
+        end
+        Func.new(build, self)
+    end
+    
+    def read_object
+        build_hash = {}
+        self.advance    # move past the initial signal
+        loop do
+            name = self.read_str
+            self.advance
+            self.expect ":"
+            self.advance
+            build_hash[name] = self.read_func
+            
+            self.expect "]"
+            self.advance
+            
+            puts self.current
+            
+            break unless self.current == ","
+            self.advance
+        end
+        build_hash
     end
     
     def execute(debug = false, debug_time = 0.5)
@@ -433,33 +525,11 @@ class Reticular
         while @running
             self.print_state(debug_time) if debug
             
-            # cmd = self.current
-            # if @commands.has_key? cmd
-                # @commands[cmd].call(self)
-            # elsif cmd == "@"
-                # self.advance
-                # cmd += self.current
-                # unless @commands.has_key? cmd
-                    # raise "character `#{cmd}` is not a vaild instruction."
-                # end
-                # @commands[cmd].call(self)
             cmd = self.read_command
             if @commands.has_key? cmd
                 @commands[cmd].call(self)
             elsif cmd == '"'
-                build = ""
-                loop do
-                    self.advance
-                    break if @pointer.from(@field) == '"'
-                    
-                    if self.current == "\\"
-                        self.advance
-                        build += eval ("\\" + self.current).quote
-                    else
-                        build += self.current
-                    end
-                end
-                @stack.push build
+                @stack.push self.read_str
             elsif cmd == "'"
                 build = ""
                 loop do
@@ -470,31 +540,13 @@ class Reticular
                 end
                 @stack.push sround build
             elsif cmd == "["    # begin function definition
-                depth = 1
-                build = ""
-                # TODO: fix problem with strings in thing
-                while depth != 0
-                    # puts build
-                    self.advance
-                    if self.current == "["
-                        depth += 1 
-                    elsif self.current == "]"
-                        depth -= 1
-                    # elsif self.current == '"'
-                        # self.advance
-                        # while self.current != '"'
-                            # puts self.current
-                            # self.advance if self.current == "\\"
-                            # self.advance
-                        # end
-                    end
-                    build += self.current unless depth == 0
-                end
-                @stack.push Func.new(build, self)
+                @stack.push self.read_func
+            elsif cmd == "{"
+                @stack.push self.read_object
             elsif cmd =~ /[0-9]/
                 @stack.push cmd.to_i
             else
-                raise "character `#{cmd}` is not a vaild instruction."
+                raise "character `#{cmd}` is not a vaild instruction at (#{@pointer.x},#{@pointer.y})."
             end
             
             self.advance

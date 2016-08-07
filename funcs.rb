@@ -37,32 +37,30 @@ def constant(v)
     lambda { v }
 end
 
-def pretty(*args)
+def pretty(item, d = 0)
+    return item.class if d > 5
     str = ""
-    args.each do |item|
-        if item.kind_of? Array
-            str += "[ #{ item.map { |el| pretty(el) }.join(", ") } ]"
-        elsif item.kind_of? String
-            str += item.quote
-        elsif item.kind_of? Hash
-            str += "{"
-            item.each { |k, v|
-                str += "#{pretty(k)} => #{pretty(v)},"
-            }
-            str += "}"
-        # elsif item.kind_of? Fixnum
-        elsif item == nil
-            str += "nil"
-        else
-            str += item.to_s
-        end
-        str += " " unless item == args.last
+    if item.kind_of? Array
+        str += "[ #{ item.map { |el| pretty(el, d + 1) }.join(", ") } ]"
+    elsif item.kind_of? String
+        str += item.quote
+    elsif item.kind_of? Hash
+        str += "{"
+        item.each { |k, v|
+            str += "#{pretty(k, d + 1)} => #{pretty(v, d + 1)},"
+        }
+        str += "}"
+    # elsif item.kind_of? Fixnum
+    elsif item == nil
+        str += "nil"
+    else
+        str += item.to_s
     end
     str
 end
 
 def pputs(*args)
-    puts pretty(*args)
+    puts args.map {|item| pretty item}
 end
 
 def falsey?(value)
