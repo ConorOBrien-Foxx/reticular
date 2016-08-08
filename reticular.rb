@@ -103,6 +103,10 @@ class Func
         self.exec(*args)
     end
     
+    def call(*args)
+        self.exec(*args)
+    end
+    
     def to_s
         return "[#{@body}]"
     end
@@ -273,7 +277,7 @@ class Reticular
         "D"  => lambda { |instance| instance.stack.data.size.times { |i|
             instance.push instance.stack.data[i]
         } },
-        "e"  => nilary(Math.exp 1),
+        "e"  => nilary(constant Math.exp 1),
         "E"  => binary("E", {
             [:any, :any] => lambda { |x, y| x == y ? 1 : 0 },
         }),
@@ -316,6 +320,15 @@ class Reticular
         "i"  => lambda { |instance| instance.push $stdin.gets.chomp },
         "I"  => lambda { |instance| instance.push mutli_line_input },
         "j"  => lambda { |instance| instance.stack.pop.times { instance.advance } },
+        "J"  => binary("J", {
+            [:any, :any] => lambda { |x, y| x ** y },
+        }),
+        "k"  => lambda { |instance|
+            instance.advance
+            redef = instance.read_command
+            instance.commands[redef] = instance.stack.pop
+        },
+        # K is used
         "l"  => lambda { |instance| instance.push instance.data.size },
         "L"  => unary_preserve("L", {
             [Fixnum] => lambda { |x| Math.log10(x).to_i },
@@ -354,6 +367,9 @@ class Reticular
             [:any] => lambda { |x| F.nth_prime x }
         }),
         "q"  => lambda { |instance| instance.stack.data.reverse! },
+        "Q"  => unary("Q", {
+            [:any] => lambda { |x| (falsey? x) ? 1 : 0 }
+        }),
         "r"  => nilary(lambda { rand }),
         "R"  => binary("R", {[:any, :any] => lambda { |x, y| Array x .. y}}),
         "@R" => binary("@R", {[:any, :any] => lambda { |x, y| rand x .. y }}),
@@ -451,7 +467,7 @@ class Reticular
     def read_command
         build = ""
         cmd = self.current
-        if cmd == "@"
+        if cmd == "@" || cmd == "K"
             self.advance
             cmd += self.current
         end
