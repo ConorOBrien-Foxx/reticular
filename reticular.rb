@@ -242,6 +242,14 @@ class Reticular
             cmd = instance.current
             instance.stack.push instance.variables[cmd]
         },
+        # extended functions
+        "#"  => lambda { |instance|
+            entry = instance.stack.pop
+            unless instance.ext_cmds.has_key? entry
+                raise "error: `#` has no extension `#{entry}` at (#{instance.pointer.x},#{instance.pointer.y})"
+            end
+            instance.ext_cmds[entry].call(instance)
+        },
         "@`" => lambda { |instance| instance.print_state },
         "@@" => lambda { |instance|
             # up if 1, right if 0, down if -1
@@ -297,7 +305,7 @@ class Reticular
                 instance.push instance.stack.data[s - n + i]
             }
         },
-        "e"  => nilary(constant Math.exp 1),
+        "e"  => nilary(constant Math::E),
         "E"  => binary("E", {
             [:any, :any] => lambda { |x, y| x == y ? 1 : 0 },
         }),
@@ -443,7 +451,37 @@ class Reticular
         "Z"  => binary("Z", {
             [:any, :any] => lambda { |x, y| bool_to_i x >= y }
         }),
-    }   
+    }
+    
+    # used by `#`
+    @@ext_cmds = {
+        0   => unary("0#", {[:any] => lambda { |x| -x }}),
+        1   => unary("1#", {[:any] => lambda { |x| Math.sin x }}),
+        2   => unary("2#", {[:any] => lambda { |x| Math.cos x }}),
+        3   => unary("3#", {[:any] => lambda { |x| Math.tan x }}),
+        4   => unary("4#", {[:any] => lambda { |x| Math.asin x }}),
+        5   => unary("5#", {[:any] => lambda { |x| Math.acos x }}),
+        6   => unary("6#", {[:any] => lambda { |x| Math.atan x }}),
+        7   => unary("7#", {[:any] => lambda { |x| Math.asinh x }}),
+        8   => unary("8#", {[:any] => lambda { |x| Math.acosh x }}),
+        9   => unary("9#", {[:any] => lambda { |x| Math.atanh x }}),
+        "a" => binary("a#", {[:any, :any] => lambda { |y, x| Math.atan2 y, x}}),
+        "b" => unary("b#", {[:any] => lambda { |x| Math.cbrt x }}),
+        "c" => unary("c#", {[:any] => lambda { |x| Math.erf x }}),
+        "d" => unary("d#", {[:any] => lambda { |x| Math.erfc x }}),
+        "e" => unary("e#", {[:any] => lambda { |x| Math.exp x }}),
+        "f" => unary("f#", {[:any] => lambda { |x| Math.frexp x }}),
+        "g" => unary("g#", {[:any] => lambda { |x| Math.gamma x }}),
+        "h" => binary("h#", {[:any, :any] => lambda { |x, y| Math.hypot x, y }}),
+        "i" => binary("i#", {[:any, :any] => lambda { |x, y| Math.ldexp x, y }}),
+        "j" => unary("j#", {[:any] => lambda { |x| Math.lgamma x }}),
+        "k" => binary("k#", {[:any, :any] => lambda { |x, y| Math.log x, y }}),
+        "l" => unary("l#", {[:any] => lambda { |x| Math.log x }}),
+        "m" => unary("m#", {[:any] => lambda { |x| Math.log10 x }}),
+        "n" => unary("n#", {[:any] => lambda { |x| Math.log2 x }}),
+        "o" => unary("o#", {[:any] => lambda { |x| Math.sqrt x }}),
+        "p" => nilary(constant Math::PI),
+    }
     
     def initialize(code, args)
         @gen       = 0
@@ -454,6 +492,7 @@ class Reticular
         @running   = false
         @pointer   = Coordinate.new(0, 0)
         @commands  = @@commands
+        @ext_cmds  = @@ext_cmds
         @variables = {}
         
         if code.empty?
@@ -479,6 +518,7 @@ class Reticular
     attr_accessor :output
     attr_accessor :pointer
     attr_accessor :commands
+    attr_accessor :ext_cmds
     attr_accessor :variables
     
     # gives relevant properties to the other instance
@@ -685,7 +725,9 @@ flags = []
 
 flag_arity = {
     "d" => 1,
-    "a" => 0
+    "debug" => 1,
+    "t" => 1,
+    "timeout" => 1,
 }
 
 other_args = []
