@@ -91,6 +91,9 @@ class Func
         @parent = parent_instance
     end
     
+    attr_accessor :body
+    attr_accessor :parent
+    
     def exec(*args)
         # TODO
         child = Reticular.new(@body + ";", args)
@@ -130,7 +133,8 @@ def nary(n, sym, f_map, preserve = false)
         end
         
         if func == nil
-            raise "operator #{sym} does not have behaviour for types [#{types.join(", ")}]"
+            instance.print_state
+            raise "operator #{sym} does not have behaviour for types [#{types.join(", ")}] at (#{instance.pointer.x},#{instance.pointer.y})"
         end
         instance.stack.push func.call(*top)
     }
@@ -158,7 +162,10 @@ end
 
 class Reticular
     @@commands = {
-        " "  => lambda { |instance| instance},
+        " "  => lambda { |instance|
+            instance.skip_whitespace
+            instance.rewind
+        },
         ">"  => lambda { |instance| instance.dir.update( 1,  0) },
         "<"  => lambda { |instance| instance.dir.update(-1,  0) },
         "v"  => lambda { |instance| instance.dir.update( 0,  1) },
@@ -176,6 +183,7 @@ class Reticular
             instance.stack.push instance.current
         },
         "+"  => binary("+", {
+            [Func, Func] => lambda { |f, g| Func.new(f.body + g.body, f.parent) },
             [Array, Array] => lambda { |x, y| x.concat y },
             [Array, :any] => lambda { |x, y| x.map {|e| e + y} },
             [:any, Array] => lambda { |x, y| y.map {|e| x + e} },
@@ -192,6 +200,7 @@ class Reticular
             [Array, String] => lambda { |x, y|
                 x.product(y.chars).map { |x| x.join } .join
             },
+            [Func, Fixnum] => lambda { |f, n| n.times { f.exec } },
             [Array, :any] => lambda { |x, y| x.map {|e| e * y} },
             [:any, Array] => lambda { |x, y| y.map {|e| x * e} },
             [:any, :any] => lambda { |x, y| x * y },
@@ -206,6 +215,7 @@ class Reticular
             [Float, Float]     => lambda { |x, y| x / y },
         }),
         "&"  => binary("&", {
+            [Array, :any]  => lambda { |a, v| a.push v },
             [:any, :any]   => lambda { |x, y| (x.to_f / y.to_f).to_i }
         }),
         "$"  => lambda { |instance| instance.stack.pop },
@@ -216,10 +226,10 @@ class Reticular
             instance.variables[ref] = value
         },
         "_"  => lambda { |instance|
-            instance.dir.update(-1 + 2 * (falsey?(instance.stack.top) ? 1 : 0), 0)
+            instance.dir.update(-1 + 2 * (falsey?(instance.stack.pop) ? 1 : 0), 0)
         },
         "|"  => lambda { |instance|
-            instance.dir.update(0, -1 + 2 * (falsey?(instance.stack.top) ? 1 : 0))
+            instance.dir.update(0, -1 + 2 * (falsey?(instance.stack.pop) ? 1 : 0))
         },
         "`"  => lambda { |instance|
             instance.push instance.variables[instance.stack.pop]
@@ -232,6 +242,7 @@ class Reticular
             cmd = instance.current
             instance.stack.push instance.variables[cmd]
         },
+        "@`" => lambda { |instance| instance.print_state },
         "@@" => lambda { |instance|
             # up if 1, right if 0, down if -1
             val = instance.stack.pop
@@ -249,6 +260,7 @@ class Reticular
             top = instance.stack.pop
             arg = instance.args[top]
             unless defined? arg
+                instance.print_state
                 raise "in `a`: argument #{top} does not exist."
             end
             instance.push arg
@@ -264,6 +276,7 @@ class Reticular
             instance.stack.data += instance.stack.pop
         },
         "c"  => unary("c", {
+            [Array]  => lambda { |x| x.pop },
             [Fixnum] => lambda { |x| x.chr },
             [String] => lambda { |x| x.codepoints[0] },
         }),
@@ -277,6 +290,13 @@ class Reticular
         "D"  => lambda { |instance| instance.stack.data.size.times { |i|
             instance.push instance.stack.data[i]
         } },
+        "@d" => lambda { |instance| 
+            n = instance.stack.pop
+            s = instance.stack.data.size
+            n.times { |i|
+                instance.push instance.stack.data[s - n + i]
+            }
+        },
         "e"  => nilary(constant Math.exp 1),
         "E"  => binary("E", {
             [:any, :any] => lambda { |x, y| x == y ? 1 : 0 },
@@ -298,6 +318,9 @@ class Reticular
         },
         "g"  => lambda { |instance|
             instance.stack.pop.exec
+        },
+        "@g" => lambda { |instance|
+            instance.stack.push instance.gen
         },
         "G"  => lambda { |instance|
             args = instance.get(instance.stack.pop)
@@ -329,7 +352,7 @@ class Reticular
             instance.commands[redef] = instance.stack.pop
         },
         # K is used
-        "l"  => lambda { |instance| instance.push instance.data.size },
+        "l"  => lambda { |instance| instance.push instance.stack.data.size },
         "L"  => unary_preserve("L", {
             [Fixnum] => lambda { |x| Math.log10(x).to_i },
             [:any]   => lambda { |x| x.size },
@@ -367,8 +390,16 @@ class Reticular
             [:any] => lambda { |x| F.nth_prime x }
         }),
         "q"  => lambda { |instance| instance.stack.data.reverse! },
+        "@q" => unary("@q", {
+            [String] => lambda { |s| s.reverse },
+            [Array]  => lambda { |s| s.reverse },
+        }),
+        "@Q" => lambda { |instance|
+            n = instance.stack.pop
+            instance.stack.data.concat n.stack.get n
+        },
         "Q"  => unary("Q", {
-            [:any] => lambda { |x| (falsey? x) ? 1 : 0 }
+            [:any] => lambda { |x| 1 - bool_to_i(x) }
         }),
         "r"  => nilary(lambda { rand }),
         "R"  => binary("R", {[:any, :any] => lambda { |x, y| Array x .. y}}),
@@ -380,6 +411,10 @@ class Reticular
         "S"  => unary("S", {
             [String] => lambda { |x| x.chars },
         }),
+        "t"  => lambda { |instance| },  # take from grid to stack--TODO
+        "T"  => unary("T", {
+            [:any] => lambda { |x| x.class.name },
+        }),
         "u"  => lambda { |instance|
             instance.advance
             cmd = instance.read_command
@@ -389,9 +424,29 @@ class Reticular
             result = instance.stack.pop
             instance.variables[ref] = result
         },
+        #v used
+        "V"  => unary("V", {
+            [Array] => lambda { |x| x.last },
+            [String] => lambda { |x| x[x.size - 1] },
+        }),
+        # x for place character
+        # X for random direction
+        "y"  => binary("y", {
+            [:any, :any] => lambda { |x, y| bool_to_i x < y }
+        }),
+        "Y"  => binary("Y", {
+            [:any, :any] => lambda { |x, y| bool_to_i x <= y }
+        }),
+        "z"  => binary("z", {
+            [:any, :any] => lambda { |x, y| bool_to_i x > y }
+        }),
+        "Z"  => binary("Z", {
+            [:any, :any] => lambda { |x, y| bool_to_i x >= y }
+        }),
     }   
     
     def initialize(code, args)
+        @gen       = 0
         @dir       = Coordinate.new(1, 0)
         @args      = args
         @stack     = Stack.new
@@ -414,6 +469,7 @@ class Reticular
         self
     end
     
+    attr_accessor :gen
     attr_accessor :dir
     attr_accessor :args
     attr_accessor :field
@@ -434,6 +490,10 @@ class Reticular
     
     def advance
         @pointer.move_bound(@dir, @width, @height)
+    end
+    
+    def rewind
+        @pointer.move_bound(Coordinate.new(-@dir.x, -@dir.y), @width, @height)
     end
     
     def current
@@ -534,15 +594,26 @@ class Reticular
         build_hash
     end
     
-    def execute(debug = false, debug_time = 0.5)
+    def execute(opts = {})
+        # define defaults for opts
+        opts["debug"] ||= false
+        opts["debug_time"] ||= 0
+        opts["max_gen"] ||= Infinity
+        
         if @field == [[]]
             while true
-                self.print_state(debug_time) if debug
+                self.print_state(opts["debug_time"]) if opts["debug"]
             end
         end
+        
         @running = true
         while @running
-            self.print_state(debug_time) if debug
+            if @gen >= opts["max_gen"]
+                self.print_state
+                raise "maximum generation size met"
+            end
+            
+            self.print_state(opts["debug_time"]) if opts["debug"]
             
             cmd = self.read_command
             if @commands.has_key? cmd
@@ -565,11 +636,14 @@ class Reticular
             elsif cmd =~ /[0-9]/
                 @stack.push cmd.to_i
             else
+                instance.print_state
                 raise "character `#{cmd}` is not a vaild instruction at (#{@pointer.x},#{@pointer.y})."
             end
             
             self.advance
+            @gen += 1
         end
+        @running = false
     end
     
     def print_state(time = 0.5)
@@ -593,6 +667,7 @@ class Reticular
         }
         puts "\u2514" + "\u2500" * pointer.x + "\u2534" + "\u2500" * (x_pivot - 1) + "\u2518\n\u250C STACK"
         puts "\u2502 " + pretty(@stack)
+        puts "\u251C GENERATIONS: #{@gen}"
         puts "\u251C OUTPUT"
         puts output.gsub(/^/, "\u2502 ")
         puts "\u251C VARIABLES"
@@ -629,19 +704,23 @@ while i < ARGV.size
 end
 
 # initialize flags
-_debug = false
-_debug_time = nil
-
+opts = {
+    "debug"      => false,
+    "debug_time" => nil,
+    "nax_gen"    => Infinity,
+}
 
 # activate options
 flags.each { |arg|
     flag, options = arg
-    if flag == "d"
-        _debug = true
-        _debug_time = options[0].to_f
+    if flag == "d" || flag == "debug"
+        opts["debug"] = true
+        opts["debug_time"] = options[0].to_f
+    elsif flag == "t" || flag == "timeout"
+        opts["max_gen"] = options[0].to_i
     end
 }
 
 program = File.read(other_args.shift)
 
-Reticular.new(program, other_args).execute(_debug, _debug_time)
+Reticular.new(program, other_args).execute(opts)

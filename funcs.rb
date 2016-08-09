@@ -1,3 +1,4 @@
+Infinity = Float::INFINITY  # very important line to fix a very grave mistake
 
 class String
     def quote
@@ -65,10 +66,14 @@ end
 
 def falsey?(value)
     begin
-        return value == 0 || value.empty?
+        return value == false || value == 0 || value == nil || value.empty?
     rescue
         return false
     end
+end
+
+def bool_to_i(x)
+    (falsey? x) ? 0 : 1
 end
 
 module F
