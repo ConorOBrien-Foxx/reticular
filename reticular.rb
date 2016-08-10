@@ -393,7 +393,7 @@ class Reticular
             puts entity
         } },
         "@p" => unary("@p", {
-            [Fixnum] => lambda { |x| F.is_prime? x }
+            [Fixnum] => lambda { |x| bool_to_i F.is_prime? x }
         }),
         "@P" => unary("@P", {
             [Fixnum] => lambda { |x| F.nth_prime x }
@@ -412,15 +412,15 @@ class Reticular
         },
         "r"  => nilary(lambda { rand }),
         "R"  => binary("R", {[:any, :any] => lambda { |x, y| Array x .. y}}),
-        "@R" => binary("@R", {[:any, :any] => lambda { |x, y| rand x .. y }}),
         "@r" => unary("@r", {[:any] => lambda { |x| x[rand 0 ... x.size] }}),
+        "@R" => binary("@R", {[:any, :any] => lambda { |x, y| rand x .. y }}),
         "s"  => unary("s", {
             [:any] => lambda { |x| x.to_s },
         }),
         "S"  => unary("S", {
             [String] => lambda { |x| x.chars },
         }),
-        "t"  => lambda { |instance| },  # take from grid to stack--TODO
+        #"t"  => lambda { |instance| },  # take from grid to stack--TODO
         "T"  => unary("T", {
             [:any] => lambda { |x| x.class.name },
         }),
