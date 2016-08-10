@@ -482,6 +482,10 @@ class Reticular
         "n" => unary("n#", {[:any] => lambda { |x| Math.log2 x }}),
         "o" => unary("o#", {[:any] => lambda { |x| Math.sqrt x }}),
         "p" => nilary(constant Math::PI),
+        "q" => binary("q#", {[:any, :any] => lambda { |x, y| [x, y].max }}),
+        "r" => binary("r#", {[:any, :any] => lambda { |x, y| [x, y].min }}),
+        "s" => unary("s#", {[:any] => lambda { |x| x.max }}),
+        "t" => unary("t#", {[:any] => lambda { |x| x.min }}),
     }
     
     def initialize(code, args)
