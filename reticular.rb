@@ -334,6 +334,11 @@ class Reticular
             args = instance.get(instance.stack.pop)
             instance.stack.pop.exec args
         },
+        "h"  => lambda { |instance|
+            hash, key, value = instance.get(3)
+            hash[key] = value
+            instance.push hash
+        },
         "H"  => lambda { |instance|
             hash, key = instance.get(2)
             instance.push hash
@@ -342,11 +347,6 @@ class Reticular
             rescue
                 instance.push hash.send(key)
             end
-        },
-        "h"  => lambda { |instance|
-            hash, key, value = instance.get(3)
-            hash[key] = value
-            instance.push hash
         },
         "i"  => lambda { |instance| instance.push $stdin.gets.chomp },
         "I"  => lambda { |instance| instance.push mutli_line_input },
@@ -363,6 +363,7 @@ class Reticular
         "l"  => lambda { |instance| instance.push instance.stack.data.size },
         "L"  => unary_preserve("L", {
             [Fixnum] => lambda { |x| Math.log10(x).to_i },
+            [Float]  => lambda { |x| Math.log10(x).to_i },
             [:any]   => lambda { |x| x.size },
         }),
         "m"  => lambda { |instance| instance.stack.data.push instance.stack.data.shift },
@@ -392,23 +393,23 @@ class Reticular
             puts entity
         } },
         "@p" => unary("@p", {
-            [:any] => lambda { |x| F.is_prime? x }
+            [Fixnum] => lambda { |x| F.is_prime? x }
         }),
         "@P" => unary("@P", {
-            [:any] => lambda { |x| F.nth_prime x }
+            [Fixnum] => lambda { |x| F.nth_prime x }
         }),
         "q"  => lambda { |instance| instance.stack.data.reverse! },
         "@q" => unary("@q", {
             [String] => lambda { |s| s.reverse },
             [Array]  => lambda { |s| s.reverse },
         }),
-        "@Q" => lambda { |instance|
-            n = instance.stack.pop
-            instance.stack.data.concat n.stack.get n
-        },
         "Q"  => unary("Q", {
             [:any] => lambda { |x| 1 - bool_to_i(x) }
         }),
+        "@Q" => lambda { |instance|
+            n = instance.stack.pop
+            instance.stack.data.concat instance.stack.get(n).reverse
+        },
         "r"  => nilary(lambda { rand }),
         "R"  => binary("R", {[:any, :any] => lambda { |x, y| Array x .. y}}),
         "@R" => binary("@R", {[:any, :any] => lambda { |x, y| rand x .. y }}),
