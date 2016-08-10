@@ -1,4 +1,4 @@
-load "funcs.rb"
+require_relative  "funcs"
 
 class Coordinate
     def initialize(x, y)
