@@ -125,7 +125,11 @@ def nary(n, sym, f_map, preserve = false)
             i = -1
             valid = dest_type.all? { |d_t|
                 i += 1
-                d_t == :any || d_t == types[i] }
+                d_t == :any || (
+                    d_t == :num && [Fixnum, Float, Bignum].any? { |c|
+                        types[i] == c
+                    }
+                ) || d_t == types[i] }
             if valid
                 func = f
                 break
@@ -134,7 +138,7 @@ def nary(n, sym, f_map, preserve = false)
         
         if func == nil
             instance.print_state
-            raise "operator #{sym} does not have behaviour for types [#{types.join(", ")}] at (#{instance.pointer.x},#{instance.pointer.y})"
+            raise "operator `#{sym}` does not have behaviour for types [#{types.join(", ")}] at (#{instance.pointer.x},#{instance.pointer.y})"
         end
         instance.stack.push func.call(*top)
     }
@@ -209,10 +213,14 @@ class Reticular
             [:any, :any] => lambda { |x, y| x - y },
         }),
         "%"  => binary("%", {
-            [Fixnum, Fixnum]   => lambda { |x, y| x.to_f / y.to_f },
+            [Fixnum, Fixnum]   => lambda { |x, y| sround x.to_f / y.to_f },
             [Fixnum, Float]    => lambda { |x, y| x.to_f / y },
             [Float, Fixnum]    => lambda { |x, y| x / y.to_f },
             [Float, Float]     => lambda { |x, y| x / y },
+            [:num, :num]       => lambda { |x, y| x / y},
+        }),
+        ","  => binary(",", {
+            [:num, :num]       => lambda { |x, y| x % y},
         }),
         "&"  => binary("&", {
             [Array, :any]  => lambda { |a, v| a.push v },
