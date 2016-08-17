@@ -1,4 +1,4 @@
-require_relative  "funcs"
+require_relative "funcs"
 
 class Coordinate
     def initialize(x, y)
@@ -357,7 +357,8 @@ class Reticular
             end
         },
         "i"  => lambda { |instance| instance.push $stdin.gets.chomp },
-        "I"  => lambda { |instance| instance.push mutli_line_input },
+        "I"  => lambda { |instance| instance.push all_input },
+        "@i" => nilary(lambda { get_char }),
         "j"  => lambda { |instance| instance.stack.pop.times { instance.advance } },
         "J"  => binary("J", {
             [:any, :any] => lambda { |x, y| x ** y },

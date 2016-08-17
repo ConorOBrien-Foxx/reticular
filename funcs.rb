@@ -1,3 +1,5 @@
+require "io/console"
+
 Infinity = Float::INFINITY  # very important line to fix a very grave mistake
 
 class String
@@ -32,6 +34,22 @@ def mutli_line_input
         string += line
     end
     return string
+end
+
+def all_input
+    input = ""
+    loop do
+        line = $stdin.gets
+        break if not line
+        input += line
+    end
+    input
+end
+
+def get_char
+    val = STDIN.getch
+    exit(1) if val === "\x03"
+    val
 end
 
 def constant(v)
