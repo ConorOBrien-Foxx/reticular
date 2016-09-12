@@ -42,45 +42,32 @@ class Coordinate
         self
     end
     
+    def -@
+        [@x, @y]
+    end
+    
     attr_accessor :x
     attr_accessor :y
 end
 
-class Stack
-    def initialize(arr = [])
-        @data = arr
-    end
-    
-    attr_accessor :data
-    
+class Stack < Array
     def top
-        @data[-1]
+        self[-1]
     end
     
     def top=(v)
-        @data.pop
-        @data.push v
+        super.pop
+        super.push v
     end
     
-    def push(v)
-        @data.push v
-    end
-    
-    def pop
-        @data.pop
-    end
-    
-    def get(n)
-        res = []
-        while n > 0
-            res.push @data.pop
-            n -= 1
+    def pop(*args)
+        return super || 0 if args.empty?
+        n = args.shift
+        unless args.empty?
+            raise ArgumentError.new "wrong number of arguments " +
+            "(given #{args.size + 1}, expected 1)"
         end
-        res.reverse
-    end
-    
-    def to_s
-        pretty(@data)
+        [*([0] * n), *super(n)][-n..-1]
     end
 end
 
@@ -117,8 +104,8 @@ end
 
 def nary(n, sym, f_map, preserve = false)
     lambda { |instance|
-        top = instance.stack.get(n)
-        (instance.stack.data.concat top) if preserve
+        top = instance.stack.pop n
+        (instance.stack.concat top) if preserve
         types = top.map { |item| item.class }
         func = nil
         f_map.each do |dest_type, f|
@@ -263,6 +250,7 @@ class Reticular
             # up if 1, right if 0, down if -1
             val = instance.stack.pop
             s_val = val <=> 0
+            # todo: fix "else" case
             instance.dir.update(*case s_val
                 when 1
                     [0, -1]
@@ -270,6 +258,8 @@ class Reticular
                     [1, 0]
                 when -1
                     [0, 1]
+                else
+                    [-1, 0]
             end)
         },
         "a"  => lambda { |instance|
@@ -287,9 +277,9 @@ class Reticular
             if top.class != Fixnum
                 raise "in `b`: expected argument #{top} to be Fixnum, got type #{top.class}."
             end
-            instance.push instance.stack.get top},
+            instance.push instance.stack.pop top},
         "B"  => lambda { |instance|
-            instance.stack.data += instance.stack.pop
+            instance.stack += instance.stack.pop
         },
         "c"  => unary("c", {
             [Array]  => lambda { |x| x.pop },
@@ -302,15 +292,16 @@ class Reticular
         "@c" => binary("@c", {
             [:any, :any] => lambda { |x, y| x.count y},
         }),
+        "@C" => lambda { |instance| clear },
         "d"  => lambda { |instance| instance.push instance.stack.top },
-        "D"  => lambda { |instance| instance.stack.data.size.times { |i|
-            instance.push instance.stack.data[i]
+        "D"  => lambda { |instance| instance.stack.size.times { |i|
+            instance.push instance.stack[i]
         } },
         "@d" => lambda { |instance| 
             n = instance.stack.pop
-            s = instance.stack.data.size
+            s = instance.stack.size
             n.times { |i|
-                instance.push instance.stack.data[s - n + i]
+                instance.push instance.stack[s - n + i]
             }
         },
         "e"  => nilary(constant Math::E),
@@ -369,14 +360,14 @@ class Reticular
             instance.commands[redef] = instance.stack.pop
         },
         # K is used
-        "l"  => lambda { |instance| instance.push instance.stack.data.size },
+        "l"  => lambda { |instance| instance.push instance.stack.size },
         "L"  => unary_preserve("L", {
             [Fixnum] => lambda { |x| Math.log10(x).to_i },
             [Float]  => lambda { |x| Math.log10(x).to_i },
             [:any]   => lambda { |x| x.size },
         }),
-        "m"  => lambda { |instance| instance.stack.data.push instance.stack.data.shift },
-        "M"  => lambda { |instance| instance.stack.data.unshift instance.stack.data.pop },
+        "m"  => lambda { |instance| instance.stack.push instance.stack.shift },
+        "M"  => lambda { |instance| instance.stack.unshift instance.stack.pop },
         "n"  => unary("n", {
             [:any] => lambda { |x| sround x }
         }),
@@ -386,8 +377,8 @@ class Reticular
             instance.output += entity.to_s
             print entity
         },
-        "O"  => lambda { |instance| instance.stack.data.size.times {
-            entity = instance.stack.data.shift
+        "O"  => lambda { |instance| instance.stack.size.times {
+            entity = instance.stack.shift
             instance.output += entity.to_s
             print entity
         } },
@@ -396,8 +387,8 @@ class Reticular
             instance.output += entity.to_s
             puts entity
         },
-        "P"  => lambda { |instance| instance.stack.data.size.times {
-            entity = instance.stack.data.shift
+        "P"  => lambda { |instance| instance.stack.size.times {
+            entity = instance.stack.shift
             instance.output += entity.to_s
             puts entity
         } },
@@ -407,7 +398,7 @@ class Reticular
         "@P" => unary("@P", {
             [Fixnum] => lambda { |x| F.nth_prime x }
         }),
-        "q"  => lambda { |instance| instance.stack.data.reverse! },
+        "q"  => lambda { |instance| instance.stack.reverse! },
         "@q" => unary("@q", {
             [String] => lambda { |s| s.reverse },
             [Array]  => lambda { |s| s.reverse },
@@ -417,7 +408,7 @@ class Reticular
         }),
         "@Q" => lambda { |instance|
             n = instance.stack.pop
-            instance.stack.data.concat instance.stack.get(n).reverse
+            instance.stack.concat instance.stack.pop(n).reverse
         },
         "r"  => nilary(lambda { rand }),
         "R"  => binary("R", {[:any, :any] => lambda { |x, y| Array x .. y}}),
@@ -429,7 +420,10 @@ class Reticular
         "S"  => unary("S", {
             [String] => lambda { |x| x.chars },
         }),
-        #"t"  => lambda { |instance| },  # take from grid to stack--TODO
+        "t"  => lambda { |instance|
+            x, y = instance.stack.pop 2
+            instance.stack.push instance.field[y][x]
+        },
         "T"  => unary("T", {
             [:any] => lambda { |x| x.class.name },
         }),
@@ -442,16 +436,35 @@ class Reticular
             result = instance.stack.pop
             instance.variables[ref] = result
         },
+        "U"  => lambda { |instance|
+            instance.dir.update(*instance.stack.pop(2))
+        },
+        "@U"  => lambda { |instance|
+            (-instance.dir).each { |e| instance.push e }
+        },
         #v used
         "V"  => unary("V", {
             [Array] => lambda { |x| x.last },
             [String] => lambda { |x| x[x.size - 1] },
         }),
-        # x for place character
+        "x"  => lambda { |instance|
+            x, y, s = instance.stack.pop 3
+            instance.place s, x, y, false
+        },
+        "@X" => lambda { |instance|
+            x, y, s = instance.stack.pop 3
+            instance.place s, x, y, true
+        },
+        "@x" => lambda { |instance|
+            instance.stack.push instance.pointer.x
+        },
         # X for random direction
         "y"  => binary("y", {
             [:any, :any] => lambda { |x, y| bool_to_i x < y }
         }),
+        "@y" => lambda { |instance|
+            instance.stack.push instance.pointer.y
+        },
         "Y"  => binary("Y", {
             [:any, :any] => lambda { |x, y| bool_to_i x <= y }
         }),
@@ -515,16 +528,17 @@ class Reticular
             return self
         end
         
-        _code      = code.gsub(/\t/, "    ").delete "\r"
-        @width     = _code.lines.map { |line| line.chomp.size } .max || 0
-        @height    = _code.lines.size
-        @field     = _code.lines.map { |line| line.chomp.ljust(@width).chars }
+        @code      = code.gsub(/\t/, "    ").delete "\r"
+        @width     = @code.lines.map { |line| line.chomp.size } .max || 0
+        @height    = @code.lines.size
+        @field     = @code.lines.map { |line| line.chomp.ljust(@width).chars }
         self
     end
     
     attr_accessor :gen
     attr_accessor :dir
     attr_accessor :args
+    attr_accessor :code
     attr_accessor :field
     attr_accessor :stack
     attr_accessor :width
@@ -534,6 +548,29 @@ class Reticular
     attr_accessor :commands
     attr_accessor :ext_cmds
     attr_accessor :variables
+    
+    def boundary
+        @code   = field.map(&:join).join "\n"
+        @width  = @code.lines.map { |line| line.chomp.size } .max || 0
+        @height = @code.lines.size
+        @field  = @code.lines.map { |line| line.chomp.ljust(@width).chars }
+    end
+    
+    def place(str, x, y, mask)
+        str.lines.each.with_index { |line, i|
+            line.chomp!
+            @field[y + i] ||= []
+            char_mask = line.chars
+            if mask
+                # TODO: mask does not work
+                char_mask = char_mask.map.with_index { |chr, i|
+                    chr == " " ? line.chars[i] : chr
+                }
+            end
+            @field[y + i][x .. x + line.size] = char_mask
+        }
+        self.boundary
+    end
     
     # gives relevant properties to the other instance
     def adopt(other)
@@ -563,7 +600,7 @@ class Reticular
     end
     
     def get(*a)
-        @stack.get *a
+        @stack.pop *a
     end
     
     def expect(command)
@@ -742,6 +779,8 @@ flag_arity = {
     "debug" => 1,
     "t" => 1,
     "timeout" => 1,
+    "r" => 0,
+    "read" => 0,
 }
 
 other_args = []
@@ -750,8 +789,9 @@ i = 0
 while i < ARGV.size
     argument = ARGV[i]
     unless nil == (argument =~ /^[-\/]/)
-        flag = argument[1 .. argument.size]
-        flags.push [flag, ARGV[(i + 1) .. (i + flag_arity[flag])]]
+        flag = argument[1 .. -1]
+        raise "undefined flag `#{flag}`" unless flag_arity.has_key? flag
+        flags.push [flag, ARGV[i + 1 .. i + flag_arity[flag]]]
         i += flag_arity[flag]
     else
         other_args.push argument
@@ -759,11 +799,12 @@ while i < ARGV.size
     i += 1
 end
 
-# initialize flags
+# initialize flag options
 opts = {
     "debug"      => false,
     "debug_time" => nil,
-    "nax_gen"    => Infinity,
+    "max_gen"    => Infinity,
+    "read_stdin" => false,
 }
 
 # activate options
@@ -774,9 +815,15 @@ flags.each { |arg|
         opts["debug_time"] = options[0].to_f
     elsif flag == "t" || flag == "timeout"
         opts["max_gen"] = options[0].to_i
+    elsif flag == "r" || flag == "read"
+        opts["read_stdin"] = true
     end
 }
 
-program = File.read(other_args.shift)
+if opts["read_stdin"]
+    program = all_input
+else
+    program = File.read(other_args.shift)
+end
 
 Reticular.new(program, other_args).execute(opts)

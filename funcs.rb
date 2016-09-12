@@ -40,7 +40,7 @@ def all_input
     input = ""
     loop do
         line = $stdin.gets
-        break if not line
+        break unless line
         input += line
     end
     input
