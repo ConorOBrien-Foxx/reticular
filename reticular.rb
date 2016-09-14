@@ -191,7 +191,10 @@ class Reticular
             [Array, String] => lambda { |x, y|
                 x.product(y.chars).map { |x| x.join } .join
             },
-            [Func, Fixnum] => lambda { |f, n| n.times { f.exec } },
+            [Func, Fixnum] => lambda { |f, n|
+                n.times { f.exec }
+                f.parent.stack.pop  # remove return result
+            },
             [Array, :any] => lambda { |x, y| x.map {|e| e * y} },
             [:any, Array] => lambda { |x, y| y.map {|e| x * e} },
             [:any, :any] => lambda { |x, y| x * y },
@@ -420,6 +423,9 @@ class Reticular
         "S"  => unary("S", {
             [String] => lambda { |x| x.chars },
         }),
+        "@s" => nary(3, "@s", {
+            [:any, Fixnum, Fixnum] => lambda { |str, i1, i2| str[i1..i2] },
+        }),
         "t"  => lambda { |instance|
             x, y = instance.stack.pop 2
             instance.stack.push instance.field[y][x]
@@ -508,6 +514,7 @@ class Reticular
         "r" => binary("r#", {[:any, :any] => lambda { |x, y| [x, y].min }}),
         "s" => unary("s#", {[:any] => lambda { |x| x.max }}),
         "t" => unary("t#", {[:any] => lambda { |x| x.min }}),
+        Math::E => nilary(constant Infinity),
     }
     
     def initialize(code, args)
