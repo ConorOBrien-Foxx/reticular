@@ -8,6 +8,12 @@ class String
     end
 end
 
+class Regexp
+    def body
+        /(<=\/).+(?=\/.*$)/.match self.inspect
+    end
+end
+
 def sround(item)
     if item.is_a? String
         item =~ /^[-0-9.]+$/ && sround(item.to_f)

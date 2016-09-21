@@ -200,6 +200,14 @@ class Reticular
             [:any, :any] => lambda { |x, y| x * y },
         }),
         "-"  => binary("-", {
+            # set difference, a1 \ a2
+            [Array, Array] => lambda { |a1, a2|
+                a1.select { |e| !a2.include? e }
+            },
+            [String, String] => lambda { |str, rpl|
+                del = Regexp.new Regexp.escape rpl
+                str.gsub del, ""
+            },
             [:any, :any] => lambda { |x, y| x - y },
         }),
         "%"  => binary("%", {
@@ -210,6 +218,10 @@ class Reticular
             [:num, :num]       => lambda { |x, y| x / y},
         }),
         ","  => binary(",", {
+            # array union
+            [Array, Array]     => lambda { |a1, a2|
+                a1.select { |e| a2.include? e }
+            },
             [:num, :num]       => lambda { |x, y| x % y},
         }),
         "&"  => binary("&", {
@@ -312,7 +324,8 @@ class Reticular
             [:any, :any] => lambda { |x, y| x == y ? 1 : 0 },
         }),
         "f"  => unary("n", {
-            [:any] => lambda { |x| x.to_f }
+            [Array] => lambda { },
+            [:any] => lambda { |x| x.to_f },
         }),
         "F"  => lambda { |instance|
             # H
@@ -424,7 +437,9 @@ class Reticular
             [String] => lambda { |x| x.chars },
         }),
         "@s" => nary(3, "@s", {
-            [:any, Fixnum, Fixnum] => lambda { |str, i1, i2| str[i1..i2] },
+            [:any, Fixnum, Fixnum] => lambda { |str, i1, i2| 
+            puts [i1..i2]
+            str[i1..i2] },
         }),
         "t"  => lambda { |instance|
             x, y = instance.stack.pop 2
@@ -788,6 +803,8 @@ flag_arity = {
     "timeout" => 1,
     "r" => 0,
     "read" => 0,
+    "p" => 0,
+    "print_state" => 0,
 }
 
 other_args = []
@@ -808,10 +825,11 @@ end
 
 # initialize flag options
 opts = {
-    "debug"      => false,
-    "debug_time" => nil,
-    "max_gen"    => Infinity,
-    "read_stdin" => false,
+    "debug"       => false,
+    "debug_time"  => nil,
+    "max_gen"     => Infinity,
+    "read_stdin"  => false,
+    "print_state" => false,
 }
 
 # activate options
@@ -824,6 +842,8 @@ flags.each { |arg|
         opts["max_gen"] = options[0].to_i
     elsif flag == "r" || flag == "read"
         opts["read_stdin"] = true
+    elsif flag == "p" || flag == "print_state"
+        opts["print_state"] = true
     end
 }
 
@@ -833,4 +853,8 @@ else
     program = File.read(other_args.shift)
 end
 
-Reticular.new(program, other_args).execute(opts)
+instance = Reticular.new(program, other_args)
+
+instance.execute opts
+
+instance.print_state if opts["print_state"]
