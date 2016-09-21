@@ -436,11 +436,21 @@ class Reticular
         "S"  => unary("S", {
             [String] => lambda { |x| x.chars },
         }),
-        "@s" => nary(3, "@s", {
-            [:any, Fixnum, Fixnum] => lambda { |str, i1, i2| 
-            # puts [i1..i2]
-            str[i1..i2] },
-        }),
+        # "@s" => nary(3, "@s", {
+            # [:any, Fixnum, Fixnum] => lambda { |str, i1, i2| 
+            
+            # str[i1..i2] },
+        # }),
+        "@s" => lambda { |instance|
+            iter, a, b = instance.stack.pop 3
+            instance.stack.push iter[b + 1 .. -1]
+            instance.stack.push iter[a..b]
+        },
+        "@S" => lambda { |instance|
+            iter, a, b = instance.stack.pop 3
+            instance.stack.push iter
+            instance.stack.push iter[a..b]
+        },
         "t"  => lambda { |instance|
             x, y = instance.stack.pop 2
             instance.stack.push instance.field[y][x]
