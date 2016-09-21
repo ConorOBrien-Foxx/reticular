@@ -438,7 +438,7 @@ class Reticular
         }),
         "@s" => nary(3, "@s", {
             [:any, Fixnum, Fixnum] => lambda { |str, i1, i2| 
-            puts [i1..i2]
+            # puts [i1..i2]
             str[i1..i2] },
         }),
         "t"  => lambda { |instance|
