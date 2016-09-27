@@ -195,6 +195,9 @@ class Reticular
                 n.times { f.exec }
                 f.parent.stack.pop  # remove return result
             },
+            [Fixnum, String] => lambda { |n, s|
+                s * n
+            },
             [Array, :any] => lambda { |x, y| x.map {|e| e * y} },
             [:any, Array] => lambda { |x, y| y.map {|e| x * e} },
             [:any, :any] => lambda { |x, y| x * y },
