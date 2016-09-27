@@ -270,14 +270,12 @@ class Reticular
             s_val = val <=> 0
             # todo: fix "else" case
             instance.dir.update(*case s_val
-                when 1
-                    [0, -1]
-                when 0
-                    [1, 0]
                 when -1
                     [0, 1]
-                else
-                    [-1, 0]
+                when 0
+                    [1, 0]
+                else # when 1
+                    [0, -1]
             end)
         },
         "a"  => lambda { |instance|
@@ -762,7 +760,7 @@ class Reticular
             elsif cmd =~ /[0-9]/
                 @stack.push cmd.to_i
             else
-                instance.print_state
+                self.print_state
                 raise "character `#{cmd}` is not a vaild instruction at (#{@pointer.x},#{@pointer.y})."
             end
             
