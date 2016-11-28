@@ -89,6 +89,12 @@ class Func
         child.adopt(@parent)
     end
     
+    def temp_exec(*args)
+        child = Reticular.new(@body + ";", args)
+        child.execute
+        child.stack
+    end
+    
     def [](*args)
         self.exec(*args)
     end
@@ -127,7 +133,9 @@ def nary(n, sym, f_map, preserve = false)
             instance.print_state
             raise "operator `#{sym}` does not have behaviour for types [#{types.join(", ")}] at (#{instance.pointer.x},#{instance.pointer.y})"
         end
-        instance.stack.push func.call(*top)
+        args = top
+        args += [instance] if func.arity > n
+        instance.stack.push func.call(*args)
     }
 end
 
@@ -178,7 +186,8 @@ class Reticular
             [Array, Array] => lambda { |x, y| x.concat y },
             [Array, :any] => lambda { |x, y| x.map {|e| e + y} },
             [:any, Array] => lambda { |x, y| y.map {|e| x + e} },
-            [:any, :any] => lambda { |x, y| x + y },
+            [String, String] => lambda { |x, y| x + y },
+            [:num, :num] => lambda { |x, y| x + y },
         }),
         "*"  => binary("*", {
             [Array, Array] => lambda { |x, y| x.product y },
@@ -250,6 +259,11 @@ class Reticular
         "?"  => lambda { |instance|
             instance.advance if falsey? instance.stack.top
         },
+        "@?" => nary(3, "@?", {
+            [Func, Func, :any] => lambda { |f, g, n|
+                falsey? n ? f : g
+            }
+        }),
         "."  => lambda { |instance|
             instance.advance
             cmd = instance.current
@@ -355,6 +369,23 @@ class Reticular
             hash[key] = value
             instance.push hash
         },
+        "@H" => binary("@H", {
+            [Fixnum, Fixnum] => lambda { |a, b|
+                str_a = a.to_s
+                str_a[b % str_a.size].to_i
+            },
+            [:any, Fixnum] => lambda { |a, b|
+                a[b % a.size]
+            }
+        }),
+        "@h" => binary("@h", {
+            [Fixnum, Fixnum] => lambda { |a, b|
+                a.to_s[b].to_i
+            },
+            [:any, Fixnum] => lambda { |a, b|
+                a[b]
+            }
+        }),
         "H"  => lambda { |instance|
             hash, key = instance.get(2)
             instance.push hash
@@ -367,6 +398,11 @@ class Reticular
         "i"  => lambda { |instance| instance.push $stdin.gets.chomp },
         "I"  => lambda { |instance| instance.push all_input },
         "@i" => nilary(lambda { get_char }),
+        "@I" => nary(3, "@I", {
+            [Array, :any, Func] => lambda { |arr, start, fun|
+                arr.inject(start) { |p, c| fun.temp_exec(p, c).pop }
+            },
+        }),
         "j"  => lambda { |instance| instance.stack.pop.times { instance.advance } },
         "J"  => binary("J", {
             [:any, :any] => lambda { |x, y| x ** y },
@@ -437,16 +473,23 @@ class Reticular
         "S"  => unary("S", {
             [String] => lambda { |x| x.chars },
         }),
-        # "@s" => nary(3, "@s", {
-            # [:any, Fixnum, Fixnum] => lambda { |str, i1, i2| 
-            
-            # str[i1..i2] },
-        # }),
-        "@s" => lambda { |instance|
-            iter, a, b = instance.stack.pop 3
-            instance.stack.push iter[b + 1 .. -1]
-            instance.stack.push iter[a..b]
-        },
+        "@s" => nary(3, "@s", {
+            [String, String, Func] => lambda { |a, b, f|
+                a.gsub(Regexp.new b) { |*a|
+                    f.temp_exec(*a).pop
+                }
+            },
+            [String, String, String] => lambda { |a, b, c|
+                a.gsub(
+                    Regexp.new(b),
+                    c
+                )
+            },
+            [:any, Fixnum, Fixnum] => lambda { |iter, a, b, instance|
+                instance.stack.push iter[b + 1 .. -1]
+                iter[a..b]
+            },
+        }),
         "@S" => lambda { |instance|
             iter, a, b = instance.stack.pop 3
             instance.stack.push iter
@@ -479,6 +522,19 @@ class Reticular
             [Array] => lambda { |x| x.last },
             [String] => lambda { |x| x[x.size - 1] },
         }),
+        "@v" => lambda { |instance|
+            x, y, s = instance.stack.pop 3
+            instance.place s, x, y, false
+            instance.pointer.x = -1
+        },
+        "@V" => lambda { |instance|
+            s = instance.stack.pop
+            instance.place s, 0, instance.pointer.y, false
+            instance.pointer.x = -1
+        },
+        "w"  => lambda { |instance|
+            sleep instance.stack.pop
+        },
         "x"  => lambda { |instance|
             x, y, s = instance.stack.pop 3
             instance.place s, x, y, false
@@ -674,6 +730,26 @@ class Reticular
         build
     end
     
+    def read_raw_str
+        build = ""
+        loop do
+            self.advance
+            break if @pointer.from(@field) == '"'
+            
+            if self.current == "\\"
+                self.advance
+                if self.current == '"'
+                    build += "'"
+                else
+                    build += "\\" + self.current
+                end
+            else
+                build += self.current
+            end
+        end
+        build
+    end
+    
     def read_func
         self.expect "["
         depth = 1
@@ -744,6 +820,8 @@ class Reticular
                 @commands[cmd].call(self)
             elsif cmd == '"'
                 @stack.push self.read_str
+            elsif cmd == '@"'
+                @stack.push self.read_raw_str
             elsif cmd == "'"
                 build = ""
                 loop do
@@ -860,6 +938,9 @@ flags.each { |arg|
 
 if opts["read_stdin"]
     program = all_input
+elsif not other_args.first
+    puts "no file given"
+    exit
 else
     program = File.read(other_args.shift)
 end

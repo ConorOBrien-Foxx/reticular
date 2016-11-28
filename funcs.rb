@@ -46,7 +46,7 @@ def all_input
     input = ""
     loop do
         line = $stdin.gets
-        break unless line
+        break unless $stdin.tty? ? line && line.chomp != "\x04" : line
         input += line
     end
     input
