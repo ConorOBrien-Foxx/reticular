@@ -85,6 +85,10 @@ class Stack < Array
         end
         [*([0] * n), *super(n)][-n..-1]
     end
+    
+    def +(arg)
+        Stack.new self.to_a + arg
+    end
 end
 
 def sround(item)
