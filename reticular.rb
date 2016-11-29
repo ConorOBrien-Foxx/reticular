@@ -821,72 +821,73 @@ class Reticular
     end
 end
 
-# execute program
+# execute program if run from this file
+if __FILE__ == $0
+    flags = []
 
-flags = []
+    flag_arity = {
+        "d" => 1,
+        "debug" => 1,
+        "t" => 1,
+        "timeout" => 1,
+        "r" => 0,
+        "read" => 0,
+        "p" => 0,
+        "print_state" => 0,
+    }
 
-flag_arity = {
-    "d" => 1,
-    "debug" => 1,
-    "t" => 1,
-    "timeout" => 1,
-    "r" => 0,
-    "read" => 0,
-    "p" => 0,
-    "print_state" => 0,
-}
+    other_args = []
 
-other_args = []
+    i = 0
+    while i < ARGV.size
+        argument = ARGV[i]
+        unless nil == (argument =~ /^[-\/]/)
+            flag = argument[1 .. -1]
+            raise "undefined flag `#{flag}`" unless flag_arity.has_key? flag
+            flags.push [flag, ARGV[i + 1 .. i + flag_arity[flag]]]
+            i += flag_arity[flag]
+        else
+            other_args.push argument
+        end
+        i += 1
+    end
 
-i = 0
-while i < ARGV.size
-    argument = ARGV[i]
-    unless nil == (argument =~ /^[-\/]/)
-        flag = argument[1 .. -1]
-        raise "undefined flag `#{flag}`" unless flag_arity.has_key? flag
-        flags.push [flag, ARGV[i + 1 .. i + flag_arity[flag]]]
-        i += flag_arity[flag]
+    # initialize flag options
+    opts = {
+        "debug"       => false,
+        "debug_time"  => nil,
+        "max_gen"     => Infinity,
+        "read_stdin"  => false,
+        "print_state" => false,
+    }
+
+    # activate options
+    flags.each { |arg|
+        flag, options = arg
+        if flag == "d" || flag == "debug"
+            opts["debug"] = true
+            opts["debug_time"] = options[0].to_f
+        elsif flag == "t" || flag == "timeout"
+            opts["max_gen"] = options[0].to_i
+        elsif flag == "r" || flag == "read"
+            opts["read_stdin"] = true
+        elsif flag == "p" || flag == "print_state"
+            opts["print_state"] = true
+        end
+    }
+
+    if opts["read_stdin"]
+        program = all_input
+    elsif not other_args.first
+        puts "no file given"
+        exit
     else
-        other_args.push argument
+        program = File.read(other_args.shift)
     end
-    i += 1
+
+    instance = Reticular.new(program, other_args)
+
+    instance.execute opts
+
+    instance.print_state if opts["print_state"]
 end
-
-# initialize flag options
-opts = {
-    "debug"       => false,
-    "debug_time"  => nil,
-    "max_gen"     => Infinity,
-    "read_stdin"  => false,
-    "print_state" => false,
-}
-
-# activate options
-flags.each { |arg|
-    flag, options = arg
-    if flag == "d" || flag == "debug"
-        opts["debug"] = true
-        opts["debug_time"] = options[0].to_f
-    elsif flag == "t" || flag == "timeout"
-        opts["max_gen"] = options[0].to_i
-    elsif flag == "r" || flag == "read"
-        opts["read_stdin"] = true
-    elsif flag == "p" || flag == "print_state"
-        opts["print_state"] = true
-    end
-}
-
-if opts["read_stdin"]
-    program = all_input
-elsif not other_args.first
-    puts "no file given"
-    exit
-else
-    program = File.read(other_args.shift)
-end
-
-instance = Reticular.new(program, other_args)
-
-instance.execute opts
-
-instance.print_state if opts["print_state"]
