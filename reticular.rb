@@ -2,7 +2,6 @@ require_relative "funcs"
 
 class Func
     def initialize(body, parent_instance)
-        # puts body
         @body = body
         @parent = parent_instance
     end
@@ -12,22 +11,29 @@ class Func
     
     def exec(*args)
         # TODO
+        # Dear past me,
+        #   What on earth did I have to do??? please be more responsible
+        # in the future. Thanks,
+        # --a concerned but also past me
         child = Reticular.new(@body + ";", args)
         @parent.adopt(child)
         child.execute
         child.adopt(@parent)
     end
     
+    # execute without bidirectional adoption
     def temp_exec(*args)
         child = Reticular.new(@body + ";", args)
         child.execute
         child.stack
     end
     
+    # alias for execute
     def [](*args)
         self.exec(*args)
     end
-    
+
+    # also an alias for execute
     def call(*args)
         self.exec(*args)
     end
@@ -35,8 +41,13 @@ class Func
     def to_s
         return "[#{@body}]"
     end
+    
+    def inspect
+        self.to_s
+    end
 end
 
+# an n-ary function for use in defining operators
 def nary(n, sym, f_map, preserve = false)
     lambda { |instance|
         top = instance.stack.pop n
@@ -60,7 +71,7 @@ def nary(n, sym, f_map, preserve = false)
         
         if func == nil
             instance.print_state
-            raise "operator `#{sym}` does not have behaviour for types [#{types.join(", ")}] at (#{instance.pointer.x},#{instance.pointer.y})"
+            raise "operator `#{sym}` does not have behaviour for types [#{types.join(", ")}] at #{instance.pointer.to_s}."
         end
         args = top
         args += [instance] if func.arity > n
@@ -202,7 +213,7 @@ class Reticular
         "#"  => lambda { |instance|
             entry = instance.stack.pop
             unless instance.ext_cmds.has_key? entry
-                raise "error: `#` has no extension `#{entry}` at (#{instance.pointer.x},#{instance.pointer.y})"
+                raise "error: `#` has no extension `#{entry}` at " + instance.pointer.inspect
             end
             instance.ext_cmds[entry].call(instance)
         },
@@ -623,7 +634,7 @@ class Reticular
     
     def expect(command)
         unless self.current == command
-            raise "error, expected `#{command}`, received `#{self.current}` at (#{@pointer.x},#{@pointer.y})"
+            raise "error, expected `#{command}`, received `#{self.current}` at #{@pointer.to_s}."
         end
         true
     end
@@ -768,7 +779,7 @@ class Reticular
                 @stack.push cmd.to_i
             else
                 self.print_state
-                raise "character `#{cmd}` is not a vaild instruction at (#{@pointer.x},#{@pointer.y})."
+                raise "character `#{cmd}` is not a vaild instruction at (#{@pointer.to_s}."
             end
             
             self.advance

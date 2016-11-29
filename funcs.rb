@@ -1,7 +1,9 @@
 require "io/console"
 
-Infinity = Float::INFINITY  # very important line to fix a very grave mistake
+# very important line to fix a very grave mistake
+Infinity = Float::INFINITY
 
+# todo: escape?
 class String
     def quote
         '"' + self + '"'
@@ -14,8 +16,7 @@ class Regexp
     end
 end
 
-
-
+# used for pointer/pointer direction
 class Coordinate
     def initialize(x, y)
         @x = x
@@ -60,6 +61,14 @@ class Coordinate
     
     def -@
         [@x, @y]
+    end
+    
+    def to_s
+        "(#{x.to_s},#{y.to_s})"
+    end
+    
+    def inspect
+        "(#{x.inspect}, #{y.inspect})"
     end
     
     attr_accessor :x
@@ -161,8 +170,9 @@ def pretty(item, d = 0)
     str
 end
 
+# todo: ... just use `pp`? maybe not, I have custom stuff
 def pputs(*args)
-    puts args.map {|item| pretty item}
+    puts args.map { |item| pretty item }
 end
 
 def falsey?(value)
