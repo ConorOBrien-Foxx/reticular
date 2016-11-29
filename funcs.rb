@@ -14,6 +14,79 @@ class Regexp
     end
 end
 
+
+
+class Coordinate
+    def initialize(x, y)
+        @x = x
+        @y = y
+    end
+    
+    def move(coor)
+        if coor.is_a? Coordinate
+            @x += coor.x
+            @y += coor.y
+        else
+            raise TypeError, "coor is not a Coordinate instance"
+        end
+        self
+    end
+    
+    def update(nx, ny)
+        @x = nx
+        @y = ny
+        self
+    end
+    
+    def from(item)
+        begin
+            item[@y][@x]
+        rescue
+            :no_char
+        end
+    end
+    
+    def same(nx, ny)
+        nx == @x && ny == @y
+    end
+    
+    def move_bound(dir, mx, my)
+        self.move(dir)
+        
+        @x %= mx
+        @y %= my
+        self
+    end
+    
+    def -@
+        [@x, @y]
+    end
+    
+    attr_accessor :x
+    attr_accessor :y
+end
+
+class Stack < Array
+    def top
+        self[-1]
+    end
+    
+    def top=(v)
+        super.pop
+        super.push v
+    end
+    
+    def pop(*args)
+        return super || 0 if args.empty?
+        n = args.shift
+        unless args.empty?
+            raise ArgumentError.new "wrong number of arguments " +
+            "(given #{args.size + 1}, expected 1)"
+        end
+        [*([0] * n), *super(n)][-n..-1]
+    end
+end
+
 def sround(item)
     if item.is_a? String
         item =~ /^[-0-9.]+$/ && sround(item.to_f)
