@@ -343,7 +343,7 @@ class Reticular
                 arr.inject(start) { |p, c| fun.temp_exec(p, c).pop }
             },
         }),
-        "j"  => lambda { |instance| instance.stack.pop.times { instance.advance } },
+        "j"  => lambda { |instance| instance.stack.pop.to_i.times { instance.advance } },
         "J"  => binary("J", {
             [:any, :any] => lambda { |x, y| x ** y },
         }),
