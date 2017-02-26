@@ -123,7 +123,7 @@ class Reticular
         },
         "+"  => binary("+", {
             [Func, Func] => lambda { |f, g| Func.new(f.body + g.body, f.parent) },
-            [Array, Array] => lambda { |x, y| x.concat y },
+            [Array, Array] => lambda { |x, y| [].concat(x).concat y },
             [Array, :any] => lambda { |x, y| x.map {|e| e + y} },
             [:any, Array] => lambda { |x, y| y.map {|e| x + e} },
             [String, String] => lambda { |x, y| x + y },
